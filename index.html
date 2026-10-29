@@ -2803,6 +2803,8 @@ function tablePanel(t){
   if(t.pet)h+=`<div class="notice acc small">🐾 Mesa pet friendly · cuenco de agua y manta disponibles${t.session?` · mascotas: <b>${t.session.pets||0}</b> <button class="btn xs ghost" data-a="petsAdd" data-id="${t.id}">+1</button>`:''}</div>`;
   if(t.session?.call)h+=`<div class="notice acc row between"><span>🔔 La mesa llamó al mozo</span>${can('validar')?`<button class="btn xs" data-a="callOk" data-id="${t.id}">Atendido</button>`:''}</div>`;
   if(cart.length)h+=`<div class="notice info"><b>Precarga desde el QR/NFC:</b> el cliente está armando ${cart.reduce((a,i)=>a+i.qty,0)} ítems (${money(cart.reduce((a,i)=>a+lineTotal(i),0))}). Lo ves en vivo; todavía no lo envió.</div>`;
+  if(t.session?.bill&&os.length){const ag={};os.filter(o=>o.status!=='cancelado').forEach(o=>o.items.forEach(i=>{const k=i.n+(i.size==='i'?' (chico)':'')+(i.extras&&i.extras.length?' + '+i.extras.map(e=>(S.extras.find(x=>x.id===e)||{n:e}).n).join(', '):'');ag[k]=ag[k]||{q:0,m:0};ag[k].q+=i.qty;ag[k].m+=lineTotal(i)}));
+    h+=`<div class="notice acc"><b>🧾 Cuenta de la mesa</b><table style="width:100%;margin-top:6px">${Object.entries(ag).map(([k,v])=>`<tr><td>${v.q}× ${esc(k)}</td><td class="num">${money(v.m)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td class="num"><b>${money(tableTotal(t))}</b></td></tr></table><div class="small mut" style="margin-top:6px">${can('cobrar')?'Cobrá desde acá o desde Caja.':'Avisá a Caja para cobrar esta mesa.'}</div></div>`;}
   if(!t.session){
     h+=`<div class="field mt"><label>Comensales</label><div class="seg">${(t.sector==='barra'?[1,2]:[1,2,3,4,5,6,8]).map(n=>`<button data-a="openTable" data-id="${t.id}" data-n="${n}">${n}</button>`).join('')}</div></div>`;
   }else{
@@ -2836,12 +2838,13 @@ VIEWS.mozo=()=>{
   const calls=tables.filter(t=>t.session?.call||t.session?.bill),pre=tables.filter(t=>(S.carts[t.id]||[]).length);
   return head(me?'Hola, '+first(staffBy(me).n):'Mozos',me?'Tus mesas: '+tables.map(t=>t.sector==='interior'?t.num:t.label).join(', '):'Vista de todos los mozos. Elegí el perfil Mozo para ver sólo las mesas de cada uno.')
   +`<div class="grid12">
+  ${U.mozoSel&&table(U.mozoSel)?.session?`<div class="s12" id="mozoDet">${tablePanel(table(U.mozoSel))}<div class="row mt"><button class="btn ghost sm" data-a="mozoCloseDet">Cerrar detalle</button></div></div>`:''}
   <div class="card s4"><h3>1 · Pedidos desde el QR para validar <span class="pill info">${qr.length}</span></h3><div class="olist">${qr.map(o=>orderCard(o,`<button class="btn sm ghost" data-a="editOrder" data-id="${o.id}">Editar</button><button class="btn sm danger" data-a="fCancel" data-id="${o.id}">Rechazar</button>`+actionsFor(o))).join('')||'<div class="empty">Nada para validar.</div>'}</div>
    ${pre.length?`<h3 class="mt2">Clientes armando su pedido (en vivo)</h3>${pre.map(t=>`<div class="ord" style="--c:#8fb3d9"><div class="oh"><b>${esc(t.label)}</b><span class="pill info">${S.carts[t.id].reduce((a,i)=>a+i.qty,0)} ítems</span></div><ul>${S.carts[t.id].map(i=>`<li><span class="q">${i.qty}×</span><span>${esc(i.n)}${i.note?`<em>“${esc(i.note)}”</em>`:''}</span></li>`).join('')}</ul></div>`).join('')}`:''}</div>
   <div class="card s4"><h3>2 · Listos para servir <span class="pill ok">${ready.length}</span></h3><div class="olist">${ready.map(o=>orderCard(o,actionsFor(o))).join('')||'<div class="empty">Nada para llevar a la mesa.</div>'}</div>
-   <h3 class="mt2">Llamados y cuentas</h3>${calls.map(t=>`<div class="row between mb"><span>${t.session.call?'🔔':'🧾'} <b>${esc(t.label)}</b> ${t.session.bill?'pidió la cuenta · '+money(tableTotal(t)):'llama al mozo'}</span>${t.session.call?`<button class="btn xs" data-a="callOk" data-id="${t.id}">Atendido</button>`:''}</div>`).join('')||'<div class="empty">Sin llamados.</div>'}</div>
+   <h3 class="mt2">Llamados y cuentas</h3>${calls.map(t=>`<div class="row between mb"><span>${t.session.call?'🔔':'🧾'} <b>${esc(t.label)}</b> ${t.session.bill?'pidió la cuenta · '+money(tableTotal(t)):'llama al mozo'}</span><span class="row">${t.session.call?`<button class="btn xs" data-a="callOk" data-id="${t.id}">Atendido</button>`:''}<button class="btn xs ghost" data-a="mozoMesa" data-id="${t.id}">${t.session.bill?'Ver cuenta':'Ver mesa'}</button></span></div>`).join('')||'<div class="empty">Sin llamados.</div>'}</div>
   <div class="card s4"><h3>3 · En caja y cocina <span class="pill">${curso.length}</span></h3><div class="olist">${curso.map(o=>orderCard(o,'')).join('')||'<div class="empty">Sin pedidos en curso.</div>'}</div></div>
-  <div class="card s12"><h3>Mis mesas <span class="small mut" style="text-transform:none;letter-spacing:0">tocá una para tomar el pedido</span></h3><div class="tables" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${tables.map(t=>mesaHTML(t).replace('data-a="mesa"','data-a="mozoMesa"')).join('')}</div></div>
+  <div class="card s12"><h3>Mis mesas <span class="small mut" style="text-transform:none;letter-spacing:0">tocá una para ver lo que pidió y su cuenta; si está libre, abrís y tomás el pedido</span></h3><div class="tables" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">${tables.map(t=>mesaHTML(t).replace('data-a="mesa"','data-a="mozoMesa"')).join('')}</div></div>
   </div>`;
 };
 
@@ -3528,7 +3531,8 @@ const ACT={
  editOrder(el){const o=getO(el);compose(o.tableId,{items:o.items,editId:o.id})},
  /* salón */
  mesa(el){U.salonSel=U.salonSel===el.dataset.id?null:el.dataset.id;render()},
- mozoMesa(el){const t=table(el.dataset.id);if(!t.session&&!can('abrir'))return;compose(t.id)},
+ mozoMesa(el){const t=table(el.dataset.id);if(!t.session){if(!can('abrir'))return;compose(t.id);return}U.mozoSel=U.mozoSel===t.id?null:t.id;render();if(U.mozoSel)setTimeout(()=>{const d=document.getElementById('mozoDet');d&&d.scrollIntoView({behavior:'smooth',block:'start'})},60)},
+ mozoCloseDet(){U.mozoSel=null;render()},
  openTable(el){if(!needs('abrir'))return;const t=table(el.dataset.id);openSession(t,+el.dataset.n);commit();toast(t.label+' abierta · '+el.dataset.n+' pers.','ok')},
  freeTable(el){const t=table(el.dataset.id);t.session=null;delete S.carts[t.id];commit()},
  callOk(el){const t=table(el.dataset.id);if(t.session)t.session.call=false;commit()},
